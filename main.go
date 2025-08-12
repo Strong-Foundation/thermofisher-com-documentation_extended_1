@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -24,6 +25,8 @@ func main() {
 	var startPage = 0
 	// Number of pages to crawl (each page has up to 60 SDS entries)
 	var stopPages = 15084 // 15084
+	// The path to the already downloaded file txt.
+	var alreadyDownloadedFiles = "downloaded.txt"
 	// Prepare to download all PDFs
 	outputFolder := "PDFs/"
 	if !directoryExists(outputFolder) {
@@ -52,7 +55,7 @@ func main() {
 			// Call the function to extract the document map from the JSON input
 			pdfURLs := extractPDFNameAndURL(docJSON)
 			// Remove the useless things from the given map.
-			pdfURLs = cleanUpMap(pdfURLs, outputFolder)
+			pdfURLs = cleanUpMap(pdfURLs, alreadyDownloadedFiles)
 			// Check the length of the map
 			if len(pdfURLs) == 0 {
 				log.Println("No new PDF URLs detected — skipping processing for this iteration.")
@@ -97,9 +100,9 @@ func sliceContains(slice []string, cointains string) bool {
 	return false
 }
 
-func cleanUpMap(givenMap map[string]string, pdfOutputFolder string) map[string]string {
+func cleanUpMap(givenMap map[string]string, alreadyDownloadedFilesTxt string) map[string]string {
 	// Get the current files in the folder.
-	currentPDFFiles := walkAndAppendPath(pdfOutputFolder)
+	currentPDFFiles := readAppendLineByLine(alreadyDownloadedFilesTxt)
 	// Create a new map to hold the cleaned data
 	cleanedMap := make(map[string]string)
 	// Loop over the original data
@@ -121,24 +124,23 @@ func cleanUpMap(givenMap map[string]string, pdfOutputFolder string) map[string]s
 	return cleanedMap
 }
 
-// Walk through a route, find all the files and attach them to a slice.
-func walkAndAppendPath(walkPath string) []string {
-	var filePath []string
-	err := filepath.Walk(walkPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		if fileExists(path) {
-			if getFileExtension(path) == ".pdf" {
-				filePath = append(filePath, filepath.Base(path))
-			}
-		}
-		return nil
-	})
+// Read and append the file line by line to a slice.
+func readAppendLineByLine(path string) []string {
+	var returnSlice []string
+	file, err := os.Open(path)
 	if err != nil {
-		log.Fatalln(err)
+		log.Println(err)
 	}
-	return filePath
+	scanner := bufio.NewScanner(file)
+	scanner.Split(bufio.ScanLines)
+	for scanner.Scan() {
+		returnSlice = append(returnSlice, scanner.Text())
+	}
+	err = file.Close()
+	if err != nil {
+		log.Println(err)
+	}
+	return returnSlice
 }
 
 func isThermoFisherSDSURL(url string) bool {
