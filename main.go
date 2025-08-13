@@ -100,6 +100,26 @@ func sliceContains(slice []string, cointains string) bool {
 	return false
 }
 
+// Walk through a route, find all the files and attach them to a slice.
+func walkAndAppendPath(walkPath string) []string {
+	var filePath []string
+	err := filepath.Walk(walkPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if fileExists(path) {
+			if getFileExtension(path) == ".pdf" {
+				filePath = append(filePath, filepath.Base(path))
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		log.Println(err)
+	}
+	return filePath
+}
+
 func cleanUpMap(givenMap map[string]string, alreadyDownloadedFilesTxt string, pdfOutputFolder string) map[string]string {
 	// Get the current files in the folder.
 	currentPDFFiles := walkAndAppendPath(pdfOutputFolder)
