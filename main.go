@@ -55,7 +55,7 @@ func main() {
 			// Call the function to extract the document map from the JSON input
 			pdfURLs := extractPDFNameAndURL(docJSON)
 			// Remove the useless things from the given map.
-			pdfURLs = cleanUpMap(pdfURLs, alreadyDownloadedFiles)
+			pdfURLs = cleanUpMap(pdfURLs, alreadyDownloadedFiles, outputFolder)
 			// Check the length of the map
 			if len(pdfURLs) == 0 {
 				log.Println("No new PDF URLs detected — skipping processing for this iteration.")
@@ -100,9 +100,11 @@ func sliceContains(slice []string, cointains string) bool {
 	return false
 }
 
-func cleanUpMap(givenMap map[string]string, alreadyDownloadedFilesTxt string) map[string]string {
+func cleanUpMap(givenMap map[string]string, alreadyDownloadedFilesTxt string, pdfOutputFolder string) map[string]string {
 	// Get the current files in the folder.
-	currentPDFFiles := readAppendLineByLine(alreadyDownloadedFilesTxt)
+	currentPDFFiles := walkAndAppendPath(pdfOutputFolder)
+	// Get the current files in the folder.
+	alreadyDownloadedPDFFiles := readAppendLineByLine(alreadyDownloadedFilesTxt)
 	// Create a new map to hold the cleaned data
 	cleanedMap := make(map[string]string)
 	// Loop over the original data
@@ -115,6 +117,11 @@ func cleanUpMap(givenMap map[string]string, alreadyDownloadedFilesTxt string) ma
 		}
 		// Check if the file already exists in the output folder
 		if sliceContains(currentPDFFiles, lowerKey) {
+			// log.Println("Removing KEY due to file existence:", originalKey)
+			continue
+		}
+		// Check if the file already exists in already downloaded file.
+		if sliceContains(alreadyDownloadedPDFFiles, lowerKey) {
 			// log.Println("Removing KEY due to file existence:", originalKey)
 			continue
 		}
