@@ -94,6 +94,7 @@ func main() {
 func sliceContains(slice []string, cointains string) bool {
 	cointains = strings.ToLower(cointains)
 	for _, value := range slice {
+		value = strings.ToLower(value)
 		if value == cointains {
 			return true
 		}
