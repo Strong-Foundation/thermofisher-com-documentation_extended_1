@@ -92,6 +92,7 @@ func main() {
 
 // Check if the slice contains a value and return a bool.
 func sliceContains(slice []string, cointains string) bool {
+	contains = strings.ToLower(contains)
 	for _, value := range slice {
 		if value == cointains {
 			return true
