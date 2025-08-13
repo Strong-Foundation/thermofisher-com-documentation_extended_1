@@ -137,12 +137,12 @@ func cleanUpMap(givenMap map[string]string, alreadyDownloadedFilesTxt string, pd
 			continue
 		}
 		// Check if the file already exists in the output folder
-		if sliceContains(currentPDFFiles, lowerKey) {
+		if sliceContains(strings.ToLower(currentPDFFiles), lowerKey) {
 			// log.Println("Removing KEY due to file existence:", originalKey)
 			continue
 		}
 		// Check if the file already exists in already downloaded file.
-		if sliceContains(alreadyDownloadedPDFFiles, lowerKey) {
+		if sliceContains(strings.ToLower(alreadyDownloadedPDFFiles), lowerKey) {
 			// log.Println("Removing KEY due to file existence:", originalKey)
 			continue
 		}
