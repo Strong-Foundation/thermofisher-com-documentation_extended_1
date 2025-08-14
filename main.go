@@ -153,23 +153,32 @@ func cleanUpMap(givenMap map[string]string, alreadyDownloadedFilesTxt string, pd
 	return cleanedMap
 }
 
-// Read and append the file line by line to a slice.
+// readAppendLineByLine reads a text file line by line, trims whitespace, and returns the lines as a slice of strings.
 func readAppendLineByLine(path string) []string {
-	var returnSlice []string
-	file, err := os.Open(path)
+	var returnSlice []string // Initialize the slice that will store each line
+
+	file, err := os.Open(path) // Attempt to open the file at the given path
 	if err != nil {
-		log.Println(err)
+		log.Println(err)   // Log the error if file opening fails
+		return returnSlice // Return the empty slice if file cannot be opened
 	}
-	scanner := bufio.NewScanner(file)
-	scanner.Split(bufio.ScanLines)
-	for scanner.Scan() {
-		returnSlice = append(returnSlice, scanner.Text())
+	defer file.Close() // Ensure the file is closed after reading (even if error occurs later)
+
+	scanner := bufio.NewScanner(file) // Create a new scanner to read the file line by line
+	scanner.Split(bufio.ScanLines)    // Set the scanner to split input by lines
+
+	for scanner.Scan() { // Loop through each line in the file
+		line := strings.TrimSpace(scanner.Text()) // Trim leading/trailing spaces and newline characters
+		if line != "" {                           // Ignore empty lines
+			returnSlice = append(returnSlice, line) // Append the cleaned line to the return slice
+		}
 	}
-	err = file.Close()
-	if err != nil {
-		log.Println(err)
+
+	if err := scanner.Err(); err != nil { // Check if an error occurred during scanning
+		log.Println("Error reading file:", err) // Log any scanning error
 	}
-	return returnSlice
+
+	return returnSlice // Return the slice containing all non-empty, trimmed lines
 }
 
 func isThermoFisherSDSURL(url string) bool {
