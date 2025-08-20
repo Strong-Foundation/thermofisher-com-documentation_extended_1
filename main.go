@@ -127,6 +127,11 @@ func cleanUpMap(givenMap map[string]string, alreadyDownloadedFilesTxt string, pd
 	currentPDFFiles := walkAndAppendPath(pdfOutputFolder)
 	// Get the current files in the folder.
 	alreadyDownloadedPDFFiles := readAppendLineByLine(alreadyDownloadedFilesTxt)
+	// View file content.
+	for _, file := range alreadyDownloadedPDFFiles {
+		fmt.Println("Local file from downloaded txt")
+		log.Println(file)
+	}
 	// Create a new map to hold the cleaned data
 	cleanedMap := make(map[string]string)
 	// Loop over the original data
@@ -134,17 +139,17 @@ func cleanUpMap(givenMap map[string]string, alreadyDownloadedFilesTxt string, pd
 		lowerKey := strings.ToLower(originalKey)
 		// Check if value is a Thermo Fisher SDS URL
 		if isThermoFisherSDSURL(value) {
-			// log.Println("Removing KEY due to SDS URL:", originalKey)
+			log.Println("Deleting key associated with SDS URL:", originalKey)
 			continue
 		}
 		// Check if the file already exists in the output folder
 		if sliceContains(currentPDFFiles, lowerKey) {
-			// log.Println("Removing KEY due to file existence:", originalKey)
+			log.Println("Deleting key due to existing file:", originalKey)
 			continue
 		}
 		// Check if the file already exists in already downloaded file.
 		if sliceContains(alreadyDownloadedPDFFiles, lowerKey) {
-			// log.Println("Removing KEY due to file existence:", originalKey)
+			log.Println("Removing key due to file existence detected via .txt file:", originalKey)
 			continue
 		}
 		// If key passes all checks, retain it in the cleaned map
