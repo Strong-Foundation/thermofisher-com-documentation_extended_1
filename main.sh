@@ -11,6 +11,7 @@ function auto_git_push() {
         else
             git pull # Pull all the changes to the local repo
             echo "➕ Adding all changes..."
+            go run remover.go
             git add .  # Stage all changes (new, modified, deleted)
 
             # Create a commit message with a timestamp
