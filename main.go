@@ -90,36 +90,36 @@ func main() {
 	log.Println("✅ All valid PDFs downloaded successfully.")
 }
 
-// Check if the slice contains a value and return a bool.
-func sliceContains(slice []string, cointains string) bool {
-	cointains = strings.ToLower(cointains)
-	for _, value := range slice {
-		value = strings.ToLower(value)
-		if value == cointains {
-			return true
-		}
-	}
-	return false
-}
-
-// Walk through a route, find all the files and attach them to a slice.
-func walkAndAppendPath(walkPath string) []string {
-	var filePath []string
+// checkIfFileExistsInPath walks through a directory and checks if the target file exists.
+// This version avoids using goroutines and sync package.
+func checkIfFileExistsInPath(walkPath string, targetFile string) bool {
+	// Use filepath.Walk to traverse the file system
 	err := filepath.Walk(walkPath, func(path string, info os.FileInfo, err error) error {
+		// If an error occurs while walking the path, skip it
 		if err != nil {
 			return nil
 		}
-		if fileExists(path) {
-			if getFileExtension(path) == ".pdf" {
-				filePath = append(filePath, filepath.Base(path))
+
+		// Check if the current item is a file and matches the target filename
+		if !info.IsDir() && filepath.Base(path) == targetFile {
+			// Check if the file exists (we use the fileExists function to check existence)
+			if fileExists(path) {
+				// Return io.EOF to signal early termination of the walk
+				return io.EOF
 			}
 		}
+
+		// Continue walking
 		return nil
 	})
-	if err != nil {
-		log.Println(err)
+
+	// If the walk was terminated early with io.EOF, it means the file was found
+	if err == io.EOF {
+		return true
 	}
-	return filePath
+
+	// If we completed the walk without finding the file, return false
+	return false
 }
 
 // searchStringInFile searches for a string in a file line by line.
@@ -157,10 +157,7 @@ func searchStringInFile(filename string, search string) bool {
 	return false // Not found
 }
 
-
 func cleanUpMap(givenMap map[string]string, alreadyDownloadedFilesTxt string, pdfOutputFolder string) map[string]string {
-	// Get the current files in the folder.
-	currentPDFFiles := walkAndAppendPath(pdfOutputFolder)
 	// Create a new map to hold the cleaned data
 	cleanedMap := make(map[string]string)
 	// Loop over the original data
@@ -172,7 +169,7 @@ func cleanUpMap(givenMap map[string]string, alreadyDownloadedFilesTxt string, pd
 			continue
 		}
 		// Check if the file already exists in the output folder
-		if sliceContains(currentPDFFiles, lowerKey) {
+		if checkIfFileExistsInPath(pdfOutputFolder, lowerKey) {
 			// log.Println("Deleting key due to existing file:", lowerKey)
 			continue
 		}
