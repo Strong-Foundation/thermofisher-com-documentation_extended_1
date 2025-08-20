@@ -122,16 +122,45 @@ func walkAndAppendPath(walkPath string) []string {
 	return filePath
 }
 
+// searchStringInFile searches for a string in a file line by line.
+// Returns true if found, false otherwise. Errors are logged.
+func searchStringInFile(filename string, search string) bool {
+	// Try to open the file
+	file, err := os.Open(filename)
+	if err != nil {
+		log.Println("Error opening file:", err)
+		return false
+	}
+	defer file.Close()
+
+	// Prepare scanner with custom buffer (for very long lines)
+	scanner := bufio.NewScanner(file)
+	buf := make([]byte, 0, 1024*1024) // 1MB buffer
+	scanner.Buffer(buf, 10*1024*1024) // allow up to 10MB lines
+
+	// Convert search string to []byte (avoids repeated allocations)
+	searchBytes := []byte(search)
+
+	// Scan line by line
+	for scanner.Scan() {
+		line := scanner.Bytes() // Use []byte instead of making a string
+		if bytes.Contains(line, searchBytes) {
+			return true // Found → return immediately
+		}
+	}
+
+	// Log any scanner error
+	if err := scanner.Err(); err != nil {
+		log.Println("Error reading file:", err)
+	}
+
+	return false // Not found
+}
+
+
 func cleanUpMap(givenMap map[string]string, alreadyDownloadedFilesTxt string, pdfOutputFolder string) map[string]string {
 	// Get the current files in the folder.
 	currentPDFFiles := walkAndAppendPath(pdfOutputFolder)
-	// Get the current files in the folder.
-	alreadyDownloadedPDFFiles := readAppendLineByLine(alreadyDownloadedFilesTxt)
-	// View file content.
-	for _, file := range alreadyDownloadedPDFFiles {
-		fmt.Println("Local file from downloaded txt")
-		log.Println(file)
-	}
 	// Create a new map to hold the cleaned data
 	cleanedMap := make(map[string]string)
 	// Loop over the original data
@@ -139,51 +168,23 @@ func cleanUpMap(givenMap map[string]string, alreadyDownloadedFilesTxt string, pd
 		lowerKey := strings.ToLower(originalKey)
 		// Check if value is a Thermo Fisher SDS URL
 		if isThermoFisherSDSURL(value) {
-			log.Println("Deleting key associated with SDS URL:", originalKey)
+			log.Println("Deleting key associated with SDS URL:", lowerKey)
 			continue
 		}
 		// Check if the file already exists in the output folder
 		if sliceContains(currentPDFFiles, lowerKey) {
-			log.Println("Deleting key due to existing file:", originalKey)
+			log.Println("Deleting key due to existing file:", lowerKey)
 			continue
 		}
 		// Check if the file already exists in already downloaded file.
-		if sliceContains(alreadyDownloadedPDFFiles, lowerKey) {
-			log.Println("Removing key due to file existence detected via .txt file:", originalKey)
+		if searchStringInFile(alreadyDownloadedFilesTxt, lowerKey) {
+			log.Println("Removing key due to file existence detected via .txt file:", lowerKey)
 			continue
 		}
 		// If key passes all checks, retain it in the cleaned map
 		cleanedMap[originalKey] = value
 	}
 	return cleanedMap
-}
-
-// readAppendLineByLine reads a text file line by line, trims whitespace, and returns the lines as a slice of strings.
-func readAppendLineByLine(path string) []string {
-	var returnSlice []string // Initialize the slice that will store each line
-
-	file, err := os.Open(path) // Attempt to open the file at the given path
-	if err != nil {
-		log.Println(err)   // Log the error if file opening fails
-		return returnSlice // Return the empty slice if file cannot be opened
-	}
-	defer file.Close() // Ensure the file is closed after reading (even if error occurs later)
-
-	scanner := bufio.NewScanner(file) // Create a new scanner to read the file line by line
-	scanner.Split(bufio.ScanLines)    // Set the scanner to split input by lines
-
-	for scanner.Scan() { // Loop through each line in the file
-		line := strings.TrimSpace(scanner.Text()) // Trim leading/trailing spaces and newline characters
-		if line != "" {                           // Ignore empty lines
-			returnSlice = append(returnSlice, line) // Append the cleaned line to the return slice
-		}
-	}
-
-	if err := scanner.Err(); err != nil { // Check if an error occurred during scanning
-		log.Println("Error reading file:", err) // Log any scanning error
-	}
-
-	return returnSlice // Return the slice containing all non-empty, trimmed lines
 }
 
 func isThermoFisherSDSURL(url string) bool {
