@@ -188,9 +188,8 @@ func cleanUpMap(givenMap map[string]string, alreadyDownloadedFilesTxt string, pd
 }
 
 func isThermoFisherSDSURL(url string) bool {
-	const prefix = "https://assets.thermofisher.com/TFS-Assets/"
-	const suffix = "/SDS"
-	return strings.HasPrefix(url, prefix) && strings.HasSuffix(url, suffix)
+    const prefix = "thermofisher.com/TFS-Assets/"
+    return strings.Contains(url, prefix) && strings.Contains(url, "/SDS")
 }
 
 // getFinalURL navigates to a given URL using headless Chrome and returns the final URL after navigation.
