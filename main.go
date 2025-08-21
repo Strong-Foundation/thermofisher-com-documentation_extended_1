@@ -165,20 +165,20 @@ func cleanUpMap(givenMap map[string]string, alreadyDownloadedFilesTxt string, pd
 		// Lower the file name thats the key.
 		key = strings.ToLower(key)
 		// Print the key and the value.
-		fmt.Printf("Key: %s, Value: %s\n", key, value)
+		// fmt.Printf("Key: %s, Value: %s\n", key, value)
 		// Check if value is a Thermo Fisher SDS URL
 		if isThermoFisherSDSURL(value) {
-			log.Println("Deleting key associated with SDS URL:", value)
+			// log.Println("Deleting key associated with SDS URL:", value)
 			continue
 		}
 		// Check if the file already exists in the output folder
 		if checkIfFileExistsInPath(pdfOutputFolder, key) {
-			log.Println("Deleting key due to existing file:", key)
+			// log.Println("Deleting key due to existing file:", key)
 			continue
 		}
 		// Check if the file already exists in already downloaded file.
 		if searchStringInFile(alreadyDownloadedFilesTxt, key) {
-			log.Println("Removing key due to file existence detected via .txt file:", key)
+			// log.Println("Removing key due to file existence detected via .txt file:", key)
 			continue
 		}
 		// If key passes all checks, retain it in the cleaned map
@@ -187,8 +187,13 @@ func cleanUpMap(givenMap map[string]string, alreadyDownloadedFilesTxt string, pd
 	return cleanedMap
 }
 
+// isThermoFisherSDSURL checks if the given URL points to a ThermoFisher SDS document
 func isThermoFisherSDSURL(url string) bool {
+    // Define the required substring that should appear in all valid ThermoFisher SDS URLs
     const prefix = "thermofisher.com/TFS-Assets/"
+    // Return true only if:
+    // 1. The URL contains the ThermoFisher assets domain path, AND
+    // 2. The URL contains "/SDS" (ensuring it points to Safety Data Sheets)
     return strings.Contains(url, prefix) && strings.Contains(url, "/SDS")
 }
 
