@@ -162,6 +162,8 @@ func cleanUpMap(givenMap map[string]string, alreadyDownloadedFilesTxt string, pd
 	cleanedMap := make(map[string]string)
 	// Loop over the original data
 	for key, value := range givenMap {
+		// Lower the file name thats the key.
+		key = strings.ToLower(key)
 		// Print the key and the value.
 		fmt.Printf("Key: %s, Value: %s\n", key, value)
 		// Check if value is a Thermo Fisher SDS URL
