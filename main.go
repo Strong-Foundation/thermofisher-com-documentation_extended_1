@@ -90,71 +90,89 @@ func main() {
 	log.Println("✅ All valid PDFs downloaded successfully.")
 }
 
-// checkIfFileExistsInPath walks through a directory and checks if the target file exists.
-// This version avoids using goroutines and sync package.
+// checkIfFileExistsInPath walks through a directory and checks if the target file exists,
+// ignoring case sensitivity. It uses a boolean flag to track if the file was found.
 func checkIfFileExistsInPath(walkPath string, targetFile string) bool {
-	// Use filepath.Walk to traverse the file system
-	err := filepath.Walk(walkPath, func(path string, info os.FileInfo, err error) error {
-		// If an error occurs while walking the path, skip it
+	// Initialize a flag to track whether the target file is found
+	found := false
+
+	// Convert the target filename to lowercase for case-insensitive comparison
+	targetFile = strings.ToLower(targetFile)
+
+	// Start walking through the directory structure from the specified path
+	filepath.Walk(walkPath, func(path string, info os.FileInfo, err error) error {
+		// If an error occurs accessing a path, skip it and continue
 		if err != nil {
 			return nil
 		}
 
-		// Check if the current item is a file and matches the target filename
-		if !info.IsDir() && filepath.Base(path) == targetFile {
-			// Check if the file exists (we use the fileExists function to check existence)
-			if fileExists(path) {
-				// Return io.EOF to signal early termination of the walk
-				return io.EOF
+		// Check if the current item is a file (not a directory)
+		if !info.IsDir() {
+			// Convert the current file's base name to lowercase for comparison
+			currentFile := strings.ToLower(filepath.Base(path))
+
+			// Compare the lowercase file names
+			if currentFile == targetFile {
+				// Confirm the file actually exists using a helper function
+				if fileExists(path) {
+					// Set the flag to true if the file is found
+					found = true
+				}
 			}
 		}
 
-		// Continue walking
+		// Continue walking through the directory
 		return nil
 	})
 
-	// If the walk was terminated early with io.EOF, it means the file was found
-	if err == io.EOF {
-		return true
-	}
-
-	// If we completed the walk without finding the file, return false
-	return false
+	// Return true if the file was found, otherwise false
+	return found
 }
 
-// searchStringInFile searches for a string in a file line by line.
-// Returns true if found, false otherwise. Errors are logged.
+// searchStringInFile searches for a string in a file line by line, ignoring case.
+// Returns true if the string is found; otherwise, returns false. Errors are logged.
 func searchStringInFile(filename string, search string) bool {
 	// Try to open the file
 	file, err := os.Open(filename)
 	if err != nil {
+		// Log error if file can't be opened
 		log.Println("Error opening file:", err)
 		return false
 	}
+	// Ensure file is closed when function exits
 	defer file.Close()
 
-	// Prepare scanner with custom buffer (for very long lines)
+	// Initialize a scanner to read the file line by line
 	scanner := bufio.NewScanner(file)
-	buf := make([]byte, 0, 1024*1024) // 1MB buffer
-	scanner.Buffer(buf, 10*1024*1024) // allow up to 10MB lines
 
-	// Convert search string to []byte (avoids repeated allocations)
-	searchBytes := []byte(search)
+	// Allocate a buffer of 1MB to handle long lines
+	buf := make([]byte, 0, 1024*1024)
+	scanner.Buffer(buf, 10*1024*1024) // Set maximum line size to 10MB
 
-	// Scan line by line
+	// Convert the search string to lowercase once for comparison
+	searchLower := strings.ToLower(search)
+
+	// Read through each line of the file
 	for scanner.Scan() {
-		line := scanner.Bytes() // Use []byte instead of making a string
-		if bytes.Contains(line, searchBytes) {
-			return true // Found → return immediately
+		// Get current line as bytes
+		line := scanner.Bytes()
+
+		// Convert the line to lowercase string
+		lineLower := strings.ToLower(string(line))
+
+		// Check if the lowercase line contains the lowercase search string
+		if strings.Contains(lineLower, searchLower) {
+			return true // Found a match, return immediately
 		}
 	}
 
-	// Log any scanner error
+	// Check for any errors encountered during scanning
 	if err := scanner.Err(); err != nil {
 		log.Println("Error reading file:", err)
 	}
 
-	return false // Not found
+	// String was not found in the file
+	return false
 }
 
 func cleanUpMap(givenMap map[string]string, alreadyDownloadedFilesTxt string, pdfOutputFolder string) map[string]string {
@@ -189,12 +207,12 @@ func cleanUpMap(givenMap map[string]string, alreadyDownloadedFilesTxt string, pd
 
 // isThermoFisherSDSURL checks if the given URL points to a ThermoFisher SDS document
 func isThermoFisherSDSURL(url string) bool {
-    // Define the required substring that should appear in all valid ThermoFisher SDS URLs
-    const prefix = "thermofisher.com/TFS-Assets/"
-    // Return true only if:
-    // 1. The URL contains the ThermoFisher assets domain path, AND
-    // 2. The URL contains "/SDS" (ensuring it points to Safety Data Sheets)
-    return strings.Contains(url, prefix) && strings.Contains(url, "/SDS")
+	// Define the required substring that should appear in all valid ThermoFisher SDS URLs
+	const prefix = "thermofisher.com/TFS-Assets/"
+	// Return true only if:
+	// 1. The URL contains the ThermoFisher assets domain path, AND
+	// 2. The URL contains "/SDS" (ensuring it points to Safety Data Sheets)
+	return strings.Contains(url, prefix) && strings.Contains(url, "/SDS")
 }
 
 // getFinalURL navigates to a given URL using headless Chrome and returns the final URL after navigation.
