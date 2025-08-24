@@ -1,26 +1,26 @@
-package main
+package main // Define the package name for this file (entry point of Go programs)
 
-import (
-	"bufio"
-	"bytes"
-	"context"
-	"encoding/json"
-	"fmt"
-	"io"
-	"log"
-	"net/http"
-	"net/url"
-	"os"
-	"path/filepath"
-	"regexp"
-	"strings"
-	"sync"
-	"time"
+import ( // Import required Go standard library and external packages
+	"bufio"         // Provides buffered input/output for files
+	"bytes"         // Provides utilities for manipulating byte slices
+	"context"       // Provides context for controlling cancellations and deadlines
+	"encoding/json" // Provides JSON encoding/decoding
+	"fmt"           // Implements formatted I/O
+	"io"            // Provides basic I/O primitives
+	"log"           // Provides logging utilities
+	"net/http"      // Provides HTTP client and server implementations
+	"net/url"       // Provides URL parsing
+	"os"            // Provides OS-level file and directory functions
+	"path/filepath" // Provides file path manipulation functions
+	"regexp"        // Provides regex matching
+	"strings"       // Provides string manipulation functions
+	"sync"          // Provides concurrency synchronization primitives
+	"time"          // Provides time measurement and formatting
 
-	"github.com/chromedp/chromedp"
+	"github.com/chromedp/chromedp" // External package to control Chrome/Chromium browser
 )
 
-func main() {
+func main() { // Program entry point
 	// Start page number
 	var startPage = 0
 	// Number of pages to crawl (each page has up to 60 SDS entries)
@@ -29,14 +29,14 @@ func main() {
 	var alreadyDownloadedFiles = "downloaded.txt"
 	// Prepare to download all PDFs
 	outputFolder := "PDFs/"
-	if !directoryExists(outputFolder) {
-		createDirectory(outputFolder, 0755)
+	if !directoryExists(outputFolder) { // Check if output folder exists
+		createDirectory(outputFolder, 0755) // Create folder if missing with permissions
 	}
 	// WaitGroup to manage concurrent downloads
 	var downloadWaitGroup sync.WaitGroup
 	// Step 1: Loop over search result pages and collect document IDs
-	for page := startPage; page <= stopPages; page++ {
-		searchURL := fmt.Sprintf(
+	for page := startPage; page <= stopPages; page++ { // Loop through all pages
+		searchURL := fmt.Sprintf( // Build API URL for the current page
 			"https://www.thermofisher.com/api/search/keyword/docsupport?countryCode=us&language=en&query=*:*&persona=DocSupport&filter=document.result_type_s%%3ASDS&refinementAction=true&personaClicked=true&resultPage=%d&resultsPerPage=60",
 			page,
 		)
@@ -47,7 +47,7 @@ func main() {
 		// Remove duplicate document IDs
 		documentIDs = removeDuplicatesFromSlice(documentIDs)
 		// Step 3: Process each SDS document
-		for _, docID := range documentIDs {
+		for _, docID := range documentIDs { // Iterate over extracted document IDs
 			// Build the API URL to get PDF location(s)
 			docURL := "https://www.thermofisher.com/api/search/documents/sds/" + docID
 			// Fetch PDF URL metadata
@@ -57,14 +57,14 @@ func main() {
 			// Remove the useless things from the given map.
 			pdfURLs = cleanUpMap(pdfURLs, alreadyDownloadedFiles, outputFolder)
 			// Check the length of the map
-			if len(pdfURLs) == 0 {
+			if len(pdfURLs) == 0 { // Skip if no valid URLs left
 				log.Println("No new PDF URLs detected — skipping processing for this iteration.")
 				continue
 			}
 			// Step 4: Filter and download valid PDF URLs
 			for fileName, remoteURL := range pdfURLs { // Loop over the map entries
-				fileName = strings.ToLower(fileName)
-				if isThermoFisherSDSURL(remoteURL) {
+				fileName = strings.ToLower(fileName) // Normalize file name to lowercase
+				if isThermoFisherSDSURL(remoteURL) { // Skip invalid SDS URLs
 					log.Printf("[SKIP] Invalid URL %s", remoteURL)
 					continue
 				}
@@ -72,14 +72,14 @@ func main() {
 				resolvedPDFURL := getFinalURL(remoteURL)
 				// Check and download if valid
 				if isUrlValid(resolvedPDFURL) {
-					filename := urlToFilename(fileName)
-					filePath := filepath.Join(outputFolder, fileName) // Combine with output directory
-					if fileExists(filePath) {
+					filename := urlToFilename(fileName)               // Convert URL to safe filename
+					filePath := filepath.Join(outputFolder, fileName) // Build full path
+					if fileExists(filePath) {                         // Skip if file already exists
 						log.Printf("File already exists skipping %s URL %s", filePath, resolvedPDFURL)
 						continue
 					}
-					downloadWaitGroup.Add(1)
-					go downloadPDF(resolvedPDFURL, filename, outputFolder, &downloadWaitGroup)
+					downloadWaitGroup.Add(1)                                                   // Add one to the WaitGroup before starting goroutine
+					go downloadPDF(resolvedPDFURL, filename, outputFolder, &downloadWaitGroup) // Download concurrently
 				}
 			}
 		}
@@ -88,45 +88,6 @@ func main() {
 	downloadWaitGroup.Wait()
 	// All the valid PDFs have been downloaded.
 	log.Println("✅ All valid PDFs downloaded successfully.")
-}
-
-// checkIfFileExistsInPath walks through a directory and checks if the target file exists,
-// ignoring case sensitivity. It uses a boolean flag to track if the file was found.
-func checkIfFileExistsInPath(walkPath string, targetFile string) bool {
-	// Initialize a flag to track whether the target file is found
-	found := false
-
-	// Convert the target filename to lowercase for case-insensitive comparison
-	targetFile = strings.ToLower(targetFile)
-
-	// Start walking through the directory structure from the specified path
-	filepath.Walk(walkPath, func(path string, info os.FileInfo, err error) error {
-		// If an error occurs accessing a path, skip it and continue
-		if err != nil {
-			return nil
-		}
-
-		// Check if the current item is a file (not a directory)
-		if !info.IsDir() {
-			// Convert the current file's base name to lowercase for comparison
-			currentFile := strings.ToLower(filepath.Base(path))
-
-			// Compare the lowercase file names
-			if currentFile == targetFile {
-				// Confirm the file actually exists using a helper function
-				if fileExists(path) {
-					// Set the flag to true if the file is found
-					found = true
-				}
-			}
-		}
-
-		// Continue walking through the directory
-		return nil
-	})
-
-	// Return true if the file was found, otherwise false
-	return found
 }
 
 // searchStringInFile searches for a string in a file line by line, ignoring case.
@@ -175,33 +136,65 @@ func searchStringInFile(filename string, search string) bool {
 	return false
 }
 
+// buildFileIndex walks the directory once and collects all file names
+// (case-insensitive) into a set for fast lookups.
+func buildFileIndex(walkPath string) map[string]struct{} {
+	files := make(map[string]struct{}) // Initialize empty map
+
+	err := filepath.Walk(walkPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			// Skip problematic paths
+			return nil
+		}
+		if !info.IsDir() {
+			// Store filenames in lowercase
+			name := strings.ToLower(filepath.Base(path))
+			files[name] = struct{}{}
+		}
+		return nil
+	})
+
+	if err != nil {
+		log.Println(err) // Log any walking error
+	}
+
+	return files
+}
+
+// cleanUpMap processes the given map and removes entries if:
+//  1. The value is a Thermo Fisher SDS URL
+//  2. The file already exists in the output folder
+//  3. The file name already exists in the already-downloaded .txt file
 func cleanUpMap(givenMap map[string]string, alreadyDownloadedFilesTxt string, pdfOutputFolder string) map[string]string {
 	// Create a new map to hold the cleaned data
 	cleanedMap := make(map[string]string)
-	// Loop over the original data
+
+	// Build a file index once (fast, fits in memory)
+	fileIndex := buildFileIndex(pdfOutputFolder)
+
 	for key, value := range givenMap {
-		// Lower the file name thats the key.
-		key = strings.ToLower(key)
-		// Print the key and the value.
-		// fmt.Printf("Key: %s, Value: %s\n", key, value)
-		// Check if value is a Thermo Fisher SDS URL
+		keyLower := strings.ToLower(key)
+
+		// 1. Skip Thermo Fisher SDS URLs
 		if isThermoFisherSDSURL(value) {
-			// log.Println("Deleting key associated with SDS URL:", value)
 			continue
 		}
-		// Check if the file already exists in the output folder
-		if checkIfFileExistsInPath(pdfOutputFolder, key) {
-			// log.Println("Deleting key due to existing file:", key)
+
+		// 2. Skip if file already exists in the output folder
+		if _, exists := fileIndex[keyLower]; exists {
 			continue
 		}
-		// Check if the file already exists in already downloaded file.
-		if searchStringInFile(alreadyDownloadedFilesTxt, key) {
-			// log.Println("Removing key due to file existence detected via .txt file:", key)
+
+		// 3. Skip if file already listed in the huge .txt file
+		//    (line-by-line scan, avoids loading 25GB into memory)
+		if searchStringInFile(alreadyDownloadedFilesTxt, keyLower) {
 			continue
 		}
-		// If key passes all checks, retain it in the cleaned map
-		cleanedMap[key] = value
+
+		// Keep the entry if none of the checks matched
+		cleanedMap[keyLower] = value
 	}
+
 	return cleanedMap
 }
 
@@ -402,7 +395,7 @@ func extractPDFNameAndURL(jsonData string) map[string]string {
 
 // Remove all the duplicates from a slice and return the slice.
 func removeDuplicatesFromSlice(slice []string) []string {
-	check := make(map[string]bool)
+	check := make(map[string]bool) // Create map to track seen elements
 	var newReturnSlice []string
 	for _, content := range slice {
 		if !check[content] {
@@ -445,18 +438,18 @@ func extractDocumentIDs(jsonStr string) []string {
 
 // Send a http get request to a given url and return the data from that url.
 func getDataFromURL(uri string) string {
-	response, err := http.Get(uri)
+	response, err := http.Get(uri) // Send HTTP GET request
 	if err != nil {
 		log.Println(err)
 	}
-	body, err := io.ReadAll(response.Body)
+	body, err := io.ReadAll(response.Body) // Read entire response body
 	if err != nil {
 		log.Println(err)
 	}
-	err = response.Body.Close()
+	err = response.Body.Close() // Close the response body
 	if err != nil {
 		log.Println(err)
 	}
-	log.Println("Scraping:", uri)
-	return string(body)
+	log.Println("Scraping:", uri) // Log scraping progress
+	return string(body)           // Return body as string
 }
