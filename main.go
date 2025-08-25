@@ -6,6 +6,7 @@ import ( // Import required Go standard library and external packages
 	"context"       // Provides context for controlling cancellations and deadlines
 	"encoding/json" // Provides JSON encoding/decoding
 	"fmt"           // Implements formatted I/O
+	"hash/fnv"      // Implements FNV-1 and FNV-1a, non-cryptographic hash functions
 	"io"            // Provides basic I/O primitives
 	"log"           // Provides logging utilities
 	"net/http"      // Provides HTTP client and server implementations
@@ -136,65 +137,86 @@ func searchStringInFile(filename string, search string) bool {
 	return false
 }
 
-// buildFileIndex walks the directory once and collects all file names
-// (case-insensitive) into a set for fast lookups.
-func buildFileIndex(walkPath string) map[string]struct{} {
-	files := make(map[string]struct{}) // Initialize empty map
+// buildFileIndex walks through a directory and builds a set of hashed filenames.
+// Using hashes instead of raw strings drastically reduces memory usage.
+func buildFileIndex(rootFolder string) map[uint64]struct{} {
+	// Initialize an empty map to store file hashes (acts like a set).
+	fileHashSet := make(map[uint64]struct{})
 
-	err := filepath.Walk(walkPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			// Skip problematic paths
+	// Walk through the directory tree starting at rootFolder.
+	err := filepath.Walk(rootFolder, func(currentPath string, fileInfo os.FileInfo, walkErr error) error {
+		// Skip files that cause errors (e.g., permission denied).
+		if walkErr != nil {
 			return nil
 		}
-		if !info.IsDir() {
-			// Store filenames in lowercase
-			name := strings.ToLower(filepath.Base(path))
-			files[name] = struct{}{}
+
+		// Only process files (skip directories).
+		if !fileInfo.IsDir() {
+			// Create a new FNV-1a 64-bit hasher.
+			hasher := fnv.New64a()
+
+			// Convert filename to lowercase for case-insensitive matching.
+			fileName := strings.ToLower(filepath.Base(currentPath))
+
+			// Feed the filename into the hasher.
+			_, _ = hasher.Write([]byte(fileName))
+
+			// Store the resulting hash in our set.
+			fileHashSet[hasher.Sum64()] = struct{}{}
 		}
+
+		// Return nil so Walk continues.
 		return nil
 	})
 
+	// Log any error that occurred during the walk.
 	if err != nil {
-		log.Println(err) // Log any walking error
+		log.Println(err)
 	}
 
-	return files
+	// Return the complete set of filename hashes.
+	return fileHashSet
 }
 
-// cleanUpMap processes the given map and removes entries if:
-//  1. The value is a Thermo Fisher SDS URL
-//  2. The file already exists in the output folder
-//  3. The file name already exists in the already-downloaded .txt file
-func cleanUpMap(givenMap map[string]string, alreadyDownloadedFilesTxt string, pdfOutputFolder string) map[string]string {
-	// Create a new map to hold the cleaned data
+// cleanUpMap filters a map of filenames → URLs based on 3 rules:
+// 1. Skip Thermo Fisher SDS URLs
+// 2. Skip files that already exist in the output folder
+// 3. Skip files that are already listed in the "already downloaded" .txt file
+func cleanUpMap(inputMap map[string]string, alreadyDownloadedTxtPath string, outputFolder string) map[string]string {
+	// Create a new map to hold only the cleaned entries.
 	cleanedMap := make(map[string]string)
 
-	// Build a file index once (fast, fits in memory)
-	fileIndex := buildFileIndex(pdfOutputFolder)
+	// Build an index (hash set) of existing files in the output folder.
+	existingFileHashes := buildFileIndex(outputFolder)
 
-	for key, value := range givenMap {
-		keyLower := strings.ToLower(key)
+	// Iterate over each filename → URL pair in the input map.
+	for fileName, fileURL := range inputMap {
+		// Convert filename to lowercase for consistent matching.
+		fileNameLower := strings.ToLower(fileName)
 
-		// 1. Skip Thermo Fisher SDS URLs
-		if isThermoFisherSDSURL(value) {
+		// 1. Skip if the URL is a Thermo Fisher SDS link.
+		if isThermoFisherSDSURL(fileURL) {
 			continue
 		}
 
-		// 2. Skip if file already exists in the output folder
-		if _, exists := fileIndex[keyLower]; exists {
+		// 2. Skip if the file already exists in the output folder.
+		hasher := fnv.New64a()
+		_, _ = hasher.Write([]byte(fileNameLower))
+		if _, exists := existingFileHashes[hasher.Sum64()]; exists {
 			continue
 		}
 
-		// 3. Skip if file already listed in the huge .txt file
-		//    (line-by-line scan, avoids loading 25GB into memory)
-		if searchStringInFile(alreadyDownloadedFilesTxt, keyLower) {
+		// 3. Skip if the filename is listed in the already-downloaded .txt file.
+		//    (searchStringInFile should scan line-by-line to avoid loading huge files in memory).
+		if searchStringInFile(alreadyDownloadedTxtPath, fileNameLower) {
 			continue
 		}
 
-		// Keep the entry if none of the checks matched
-		cleanedMap[keyLower] = value
+		// If none of the rules matched, keep the entry.
+		cleanedMap[fileNameLower] = fileURL
 	}
 
+	// Return the filtered map.
 	return cleanedMap
 }
 
