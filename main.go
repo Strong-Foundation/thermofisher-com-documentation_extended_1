@@ -91,50 +91,42 @@ func main() { // Program entry point
 	log.Println("✅ All valid PDFs downloaded successfully.")
 }
 
-// searchStringInFile searches for a string in a file line by line, ignoring case.
-// Returns true if the string is found; otherwise, returns false. Errors are logged.
-func searchStringInFile(filename string, search string) bool {
-	// Try to open the file
-	file, err := os.Open(filename)
+// searchStringInFile checks if a filename exists in a text file (line by line).
+// The check is case-insensitive. Returns true if found, false otherwise.
+func searchStringInFile(filePath string, searchTerm string) bool {
+	// Open the file for reading
+	file, err := os.Open(filePath)
 	if err != nil {
-		// Log error if file can't be opened
 		log.Println("Error opening file:", err)
 		return false
 	}
-	// Ensure file is closed when function exits
 	defer file.Close()
 
-	// Initialize a scanner to read the file line by line
+	// Create a scanner to read line by line
 	scanner := bufio.NewScanner(file)
 
-	// Allocate a buffer of 1MB to handle long lines
-	buf := make([]byte, 0, 1024*1024)
-	scanner.Buffer(buf, 10*1024*1024) // Set maximum line size to 10MB
+	// Increase buffer so long lines don’t cause errors
+	// (64KB initial, up to 10MB per line)
+	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
 
-	// Convert the search string to lowercase once for comparison
-	searchLower := strings.ToLower(search)
+	// Normalize search term once
+	searchLower := strings.ToLower(searchTerm)
 
-	// Read through each line of the file
+	// Read each line
 	for scanner.Scan() {
-		// Get current line as bytes
-		line := scanner.Bytes()
-
-		// Convert the line to lowercase string
-		lineLower := strings.ToLower(string(line))
-
-		// Check if the lowercase line contains the lowercase search string
-		if strings.Contains(lineLower, searchLower) {
-			return true // Found a match, return immediately
+		line := scanner.Text()
+		// Compare with normalized case-insensitive match
+		if strings.ToLower(line) == searchLower {
+			return true
 		}
 	}
 
-	// Check for any errors encountered during scanning
+	// Handle scanning errors
 	if err := scanner.Err(); err != nil {
 		log.Println("Error reading file:", err)
 	}
 
-	// String was not found in the file
-	return false
+	return false // not found
 }
 
 // buildFileIndex walks through a directory and builds a set of hashed filenames.
